@@ -1,8 +1,8 @@
 #
 # handbrake Dockerfile
-#
 # https://github.com/jlesage/docker-handbrake
-#
+# Modified to include https://github.com/donmelton/video_transcoding
+# Modified by: Jaromir Rivera 
 
 # Pull base image.
 FROM jlesage/baseimage-gui:alpine-3.9-v3.5.2
@@ -25,6 +25,7 @@ ARG INTEL_VAAPI_DRIVER_URL=https://github.com/intel/intel-vaapi-driver/releases/
 ARG GMMLIB_URL=https://github.com/intel/gmmlib/archive/intel-gmmlib-${GMMLIB_VERSION}.tar.gz
 ARG INTEL_MEDIA_DRIVER_URL=https://github.com/intel/media-driver/archive/intel-media-${INTEL_MEDIA_DRIVER_VERSION}.tar.gz
 ARG INTEL_MEDIA_SDK_URL=https://github.com/Intel-Media-SDK/MediaSDK/archive/intel-mediasdk-${INTEL_MEDIA_SDK_VERSION}.tar.gz
+ARG MP4V2_URL=https://storage.googleapis.com/google-code-archive-downloads/v2/code.google.com/mp4v2/mp4v2-2.0.0.tar.bz2
 
 # Other build arguments.
 
@@ -57,6 +58,7 @@ RUN \
         diffutils \
         bash \
         nasm \
+        g++ \
         # misc libraries
         jansson-dev \
         libxml2-dev \
@@ -110,6 +112,13 @@ RUN \
         mkdir HandBrake && \
         curl -# -L ${HANDBRAKE_URL} | tar xj --strip 1 -C HandBrake; \
     fi && \
+    # Download mp4v2 sources.
+    echo "Downloading mp4v2 sources..." && \
+    mkdir Mp4v2 && \
+    curl -# -L -o Mp4v2.bz2 ${MP4V2_URL} && \
+    tar xjf Mp4v2.bz2 -C Mp4v2 && \
+    mv Mp4v2/mp4v2-2.0.0/* Mp4v2/ && \
+    rm -rf Mp4v2/mp4v2-2.0.0/ && \
     # Download helper.
     echo "Downloading helpers..." && \
     curl -# -L -o /tmp/run_cmd https://raw.githubusercontent.com/jlesage/docker-mgmt-tools/master/run_cmd && \
@@ -120,6 +129,15 @@ RUN \
     curl -# -L -o HandBrake/A00-hb-qsv.patch https://raw.githubusercontent.com/jlesage/docker-handbrake/master/A00-hb-qsv.patch && \
     curl -# -L -o MediaSDK/intel-media-sdk-debug-no-assert.patch https://raw.githubusercontent.com/jlesage/docker-handbrake/master/intel-media-sdk-debug-no-assert.patch && \
     curl -# -L -o intel-media-driver/media-driver-c-assert-fix.patch https://raw.githubusercontent.com/jlesage/docker-handbrake/master/media-driver-c-assert-fix.patch && \
+    # Compile mp4v2.
+    echo "Compiling mp4v2..." && \
+    cd Mp4v2 && \
+    sed -i "s|pSlash != '|*pSlash != '|g" src/rtphint.cpp && \
+    ./configure && \
+    make && \
+    make install && \
+    make install-man && \
+    cd ../ && \
     # Compile x264.
     echo "Compiling x264..." && \
     cd x264 && \
@@ -276,7 +294,25 @@ RUN \
         coreutils \
         yad \
         findutils \
-        expect
+        expect \
+        # Ruby
+        ruby \
+        ruby-irb \
+        ruby-rake \
+        ruby-io-console \
+        ruby-bigdecimal \
+        ruby-json \
+        ruby-bundler \
+        ruby-rdoc \
+        libstdc++ \
+        tzdata \
+        mkvtoolnix \
+        faac \
+        mpv
+
+# Install ruby gem
+RUN \
+    gem install video_transcoding
 
 # Adjust the openbox config.
 RUN \
@@ -313,3 +349,7 @@ LABEL \
       org.label-schema.version="unknown" \
       org.label-schema.vcs-url="https://github.com/jlesage/docker-handbrake" \
       org.label-schema.schema-version="1.0"
+
+
+
+
